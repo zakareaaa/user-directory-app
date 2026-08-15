@@ -11,6 +11,12 @@ from sqlalchemy.orm import Session
 from db import Base, SessionLocal, engine, get_db
 from model import User
 
+import logging
+
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
+
+logger = logging.getLogger("uvicorn.error")
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -25,6 +31,7 @@ class UserResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    logger.info("Database tables initialized")
 
     with SessionLocal() as database_session:
         existing_user = database_session.scalar(select(User).limit(1))
@@ -37,6 +44,7 @@ async def lifespan(app: FastAPI):
                 )
             )
             database_session.commit()
+            logger.info("Sample user created")
 
     yield 
 
@@ -44,7 +52,10 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    ],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -60,6 +71,19 @@ def health_check() -> dict[str, str]:
 def get_users(
     database_session: Annotated[Session, Depends(get_db)],
 ) -> list[User]:
-    statement = select(User).order_by(User.id)
-    return list(database_session.scalars(statement).all())
+    
+    try:
+        statement = select(User).order_by(User.id)
+        users = list(database_session.scalars(statement).all())
+
+        logger.info("Fetched %d users", len(users))
+        return users
+
+    except SQLAlchemyError as error:
+        logger.exception("Failed to fetch users")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to fetch users",
+        ) from error
 
