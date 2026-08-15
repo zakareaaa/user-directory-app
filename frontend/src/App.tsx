@@ -40,7 +40,7 @@ function App() {
         {isFetching ? "Loading..." : "Fetch Users"}
       </button>
 
-      {error && <p>Could not load users.</p>}
+      {error && <p className="error-message">Could not load users.</p>}
 
       {data?.map((user) => (
         <article key={user.id}>

@@ -33,20 +33,42 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables initialized")
 
+    sample_users = [
+        {
+            "name": "Zakarea Alkashef",
+            "email": "zak@example.com",
+        },
+        {
+            "name": "Sara Ahmad",
+            "email": "sara@example.com",
+        },
+        {
+            "name": "Adam Khalil",
+            "email": "adam@example.com",
+        },
+    ]
+
     with SessionLocal() as database_session:
-        existing_user = database_session.scalar(select(User).limit(1))
+        existing_emails = set(
+            database_session.scalars(select(User.email)).all()
+        )
 
-        if existing_user is None:
-            database_session.add(
-                User(
-                    name="Zakarea Alkashef",
-                    email="zak@example.com",
-                )
-            )
+        users_to_create = [
+            User(name=user["name"], email=user["email"])
+            for user in sample_users
+            if user["email"] not in existing_emails
+        ]
+
+        if users_to_create:
+            database_session.add_all(users_to_create)
             database_session.commit()
-            logger.info("Sample user created")
 
-    yield 
+            logger.info(
+                "Created %d sample users",
+                len(users_to_create),
+            )
+
+    yield
 
 app = FastAPI(lifespan=lifespan)
 
